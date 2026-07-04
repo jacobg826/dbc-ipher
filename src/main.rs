@@ -1,15 +1,16 @@
 use crossterm::event::{self, KeyCode};
-use ratatui::layout::{Constraint, Direction, Layout, Rect, Spacing};
-use ratatui::style::{Color, Modifier, Style, Stylize};
-use ratatui::symbols::merge::MergeStrategy;
+use dbc_rs::Message;
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
-use ratatui::widgets::{List, ListDirection, ListState};
+use ratatui::widgets::{List, ListState};
 use ratatui::{DefaultTerminal, Frame};
+use tui_tree_widget::{Tree, TreeItem, TreeState};
 
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
-    let mut list_state = ListState::default().with_selected(Some(0));
+    let mut tree_state = TreeState::default();
 
     let path = std::env::args()
         .nth(1)
@@ -18,7 +19,7 @@ fn main() -> color_eyre::Result<()> {
     let content = std::fs::read_to_string(&path)?;
     let dbc = dbc_rs::Dbc::parse(&content)?;
 
-    let mut app = App { dbc, list_state };
+    let mut app = App { dbc, tree_state };
 
     ratatui::run(|terminal| app.run(terminal))?;
     Ok(())
@@ -26,7 +27,7 @@ fn main() -> color_eyre::Result<()> {
 
 struct App {
     dbc: dbc_rs::Dbc,
-    list_state: ListState,
+    tree_state: TreeState<String>,
 }
 
 impl App {
@@ -35,8 +36,21 @@ impl App {
             terminal.draw(|frame| render(self, frame))?;
             if let Some(key) = event::read()?.as_key_press_event() {
                 match key.code {
-                    KeyCode::Char('j') | KeyCode::Down => self.list_state.select_next(),
-                    KeyCode::Char('k') | KeyCode::Up => self.list_state.select_previous(),
+                    KeyCode::Char('j') | KeyCode::Down => {
+                        self.tree_state.key_down();
+                    }
+                    KeyCode::Char('k') | KeyCode::Up => {
+                        self.tree_state.key_up();
+                    }
+                    KeyCode::Char('h') | KeyCode::Left => {
+                        self.tree_state.key_left();
+                    }
+                    KeyCode::Char('l') | KeyCode::Right => {
+                        self.tree_state.key_right();
+                    }
+                    KeyCode::Enter | KeyCode::Char(' ') => {
+                        self.tree_state.toggle_selected();
+                    }
                     KeyCode::Char('q') | KeyCode::Esc => break Ok(()),
                     _ => {}
                 }
@@ -67,41 +81,110 @@ fn render(app: &mut App, frame: &mut Frame) {
     );
 
     let messages: Vec<_> = app.dbc.messages().iter().collect();
-    render_list(frame, inner_layout[0], &messages, &mut app.list_state);
+    render_tree(frame, inner_layout[0], &messages, &mut app.tree_state);
 
-    let selected = app.list_state.selected().map(|i| messages[i]);
+    let selected = resolve_selection(&app.tree_state, &messages);
     render_detail(frame, inner_layout[1], selected);
 }
 
-fn render_list<T: Listable>(
-    frame: &mut Frame,
-    area: Rect,
-    items: &[T],
-    list_state: &mut ListState,
-) {
-    let list_items: Vec<String> = items.iter().map(|i| i.display()).collect();
-    let list = List::new(list_items)
-        .block(Block::default().title(" [0] Tree ").borders(Borders::ALL))
-        .style(Color::White)
-        .highlight_style(Modifier::REVERSED)
-        .highlight_symbol("> ");
-
-    frame.render_stateful_widget(list, area, list_state);
+enum Selection<'a> {
+    None,
+    Message(&'a Message),
+    Signal(&'a Message, &'a dbc_rs::Signal),
 }
 
-fn render_detail(frame: &mut Frame, area: Rect, message: Option<&dbc_rs::Message>) {
-    if let Some(msg) = message {
-        let outer_block = Block::default().borders(Borders::ALL);
-        let inner_area = outer_block.inner(area);
+fn resolve_selection<'a>(
+    tree_state: &TreeState<String>,
+    messages: &[&'a Message],
+) -> Selection<'a> {
+    match tree_state.selected() {
+        [] => Selection::None,
+        [msg_id] => messages
+            .iter()
+            .find(|m| &m.id().to_string() == msg_id)
+            .map(|m| Selection::Message(*m))
+            .unwrap_or(Selection::None),
+        [msg_id, sig_name, ..] => messages
+            .iter()
+            .find(|m| &m.id().to_string() == msg_id)
+            .and_then(|m| {
+                m.signals()
+                    .iter()
+                    .find(|s| s.name() == sig_name)
+                    .map(|s| Selection::Signal(m, s))
+            })
+            .unwrap_or(Selection::None),
+    }
+}
 
-        let [msg_area, sig_area] = Layout::vertical([
-            Constraint::Length(8), // fixed height for header
-            Constraint::Fill(1),   // signals get the rest
-        ])
-        .areas(inner_area);
+fn render_tree(
+    frame: &mut Frame,
+    area: Rect,
+    items: &Vec<&Message>,
+    tree_state: &mut TreeState<String>,
+) {
+    let outer_block = Block::default().borders(Borders::ALL);
+    let inner_area = outer_block.inner(area);
 
-        render_message_header(frame, msg_area, msg);
-        render_signal_list(frame, sig_area, msg);
+    frame.render_widget(outer_block, area);
+    let tree_items: Vec<TreeItem<String>> = items
+        .iter()
+        .map(|msg| {
+            if msg.signals().len() > 0 {
+                let signals = msg
+                    .signals()
+                    .iter()
+                    .map(|sig| TreeItem::new_leaf(sig.name().to_string(), sig.name()))
+                    .collect();
+                TreeItem::new(msg.id().to_string(), msg.name(), signals)
+                    .expect("signal ids cannot contain duplicates")
+            } else {
+                TreeItem::new_leaf(msg.id().to_string(), msg.name())
+            }
+        })
+        .collect();
+
+    if tree_state.selected().is_empty() {
+        if let Some(first) = items.first() {
+            tree_state.select(vec![first.id().to_string()]);
+        }
+    }
+
+    let tree = Tree::new(&tree_items)
+        .expect("message identifiers must be unique")
+        .highlight_style(
+            Style::default()
+                .bg(Color::Yellow)
+                .fg(Color::Black)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol(">> ");
+
+    frame.render_stateful_widget(tree, inner_area, tree_state);
+}
+
+fn render_detail(frame: &mut Frame, area: Rect, selection: Selection) {
+    match selection {
+        Selection::Message(msg) => {
+            let outer_block = Block::default().borders(Borders::ALL);
+            let inner_area = outer_block.inner(area);
+            frame.render_widget(outer_block, area);
+
+            let [msg_area, sig_area] =
+                Layout::vertical([Constraint::Length(8), Constraint::Fill(1)]).areas(inner_area);
+
+            render_message_header(frame, msg_area, msg);
+            render_signal_list(frame, sig_area, msg);
+        }
+        Selection::Signal(msg, sig) => {
+            render_signal_detail(frame, area, msg, sig);
+        }
+        Selection::None => {
+            frame.render_widget(
+                Paragraph::new("").block(Block::default().borders(Borders::ALL).title("Detail")),
+                area,
+            );
+        }
     }
 }
 
@@ -170,7 +253,6 @@ fn render_message_header(frame: &mut Frame, area: Rect, msg: &dbc_rs::Message) {
 }
 
 fn render_signal_list(frame: &mut Frame, area: Rect, msg: &dbc_rs::Message) {
-    let label_width = 10;
     let sig_names: Vec<Line> = msg
         .signals()
         .iter()
@@ -184,13 +266,20 @@ fn render_signal_list(frame: &mut Frame, area: Rect, msg: &dbc_rs::Message) {
     );
 }
 
-trait Listable {
-    fn display(&self) -> String;
+fn render_signal_detail(
+    frame: &mut Frame,
+    area: Rect,
+    message: &dbc_rs::Message,
+    sig: &dbc_rs::Signal,
+) {
+    frame.render_widget(
+        Paragraph::new("a").block(Block::default().borders(Borders::ALL).title("Signals")),
+        area,
+    );
 }
 
-struct Message {
-    identifier: u32,
-    signals: Vec<Signal>,
+trait Listable {
+    fn display(&self) -> String;
 }
 
 impl Listable for &dbc_rs::Message {
@@ -199,7 +288,8 @@ impl Listable for &dbc_rs::Message {
     }
 }
 
-struct Signal {
-    name: String,
-    position: u32,
+impl Listable for &dbc_rs::Signal {
+    fn display(&self) -> String {
+        self.name().to_string()
+    }
 }
