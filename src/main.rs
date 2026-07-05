@@ -2,7 +2,6 @@ mod app;
 mod selection;
 mod ui;
 
-
 use crate::app::App;
 use crate::selection::Selection;
 

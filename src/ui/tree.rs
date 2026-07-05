@@ -1,8 +1,8 @@
 use dbc_rs::Message;
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::widgets::{Block, Borders};
-use ratatui::Frame;
 use tui_tree_widget::{Tree, TreeItem, TreeState};
 
 pub fn render_tree(
@@ -18,7 +18,7 @@ pub fn render_tree(
     let tree_items: Vec<TreeItem<String>> = items
         .iter()
         .map(|msg| {
-            if msg.signals().len() > 0 {
+            if !msg.signals().is_empty() {
                 let signals = msg
                     .signals()
                     .iter()
@@ -32,10 +32,10 @@ pub fn render_tree(
         })
         .collect();
 
-    if tree_state.selected().is_empty() {
-        if let Some(first) = items.first() {
-            tree_state.select(vec![first.id().to_string()]);
-        }
+    if tree_state.selected().is_empty()
+        && let Some(first) = items.first()
+    {
+        tree_state.select(vec![first.id().to_string()]);
     }
 
     let tree = Tree::new(&tree_items)

@@ -76,9 +76,7 @@ fn render_signal_list(frame: &mut Frame, area: Rect, msg: &dbc_rs::Message) {
     let sig_names: Vec<Line> = msg
         .signals()
         .iter()
-        .map(|sig| {
-            return Line::from(vec![Span::raw(sig.name())]);
-        })
+        .map(|sig| Line::from(vec![Span::raw(sig.name())]))
         .collect();
     frame.render_widget(
         Paragraph::new(sig_names).block(Block::default().borders(Borders::ALL).title("Signals")),
@@ -127,7 +125,7 @@ fn render_signal_header(
             label("Length:", label_width),
             Span::raw(format!("{:<col_width$}", sig.length())),
             label("Units:", label_width),
-            Span::raw(format!("{}", sig.unit().unwrap_or("-"))),
+            Span::raw(sig.unit().unwrap_or("-").to_string()),
         ]),
         Line::from(vec![
             label("Factor:", label_width),

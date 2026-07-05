@@ -43,7 +43,7 @@ impl App {
             terminal.draw(|frame| render(self, frame))?;
 
             // Handle events and map to a Message
-            let mut current_msg = handle_event(&self)?;
+            let mut current_msg = handle_event(self)?;
 
             // Process updates as long as they return a non-None message
             while current_msg.is_some() {

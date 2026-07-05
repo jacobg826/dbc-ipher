@@ -16,7 +16,7 @@ pub fn resolve_selection<'a>(
         [msg_id] => messages
             .iter()
             .find(|m| &m.id().to_string() == msg_id)
-            .map(|m| Selection::Message(*m))
+            .map(|m| Selection::Message(m))
             .unwrap_or(Selection::None),
         [msg_id, sig_name, ..] => messages
             .iter()
