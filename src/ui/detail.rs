@@ -1,8 +1,9 @@
+use dbc_rs::ByteOrder;
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
-use ratatui::Frame;
 
 use crate::Selection;
 
@@ -42,49 +43,25 @@ fn render_message_header(frame: &mut Frame, area: Rect, msg: &dbc_rs::Message) {
     let col_width = 16;
 
     let lines = vec![
+        Line::from(vec![label("Name:", label_width), Span::raw(msg.name())]),
         Line::from(vec![
-            Span::styled(
-                format!("{:<label_width$}", "Name:"),
-                Style::default().fg(Color::Yellow),
-            ),
-            Span::raw(msg.name()),
-        ]),
-        Line::from(vec![
-            Span::styled(
-                format!("{:<label_width$}", "ID:"),
-                Style::default().fg(Color::Yellow),
-            ),
+            label("ID:", label_width),
             Span::raw(format!("0x{:08X}", id)),
         ]),
         Line::from(vec![
-            Span::styled(
-                format!("{:<label_width$}", "PGN:"),
-                Style::default().fg(Color::Yellow),
-            ),
+            label("PGN:", label_width),
             Span::raw(format!("{:<col_width$}", format!("0x{:04X}", pgn))),
-            Span::styled(
-                format!("{:<label_width$}", "Priority:"),
-                Style::default().fg(Color::Yellow),
-            ),
+            label("Priority:", label_width),
             Span::raw(format!("{}", priority)),
         ]),
         Line::from(vec![
-            Span::styled(
-                format!("{:<label_width$}", "SA:"),
-                Style::default().fg(Color::Yellow),
-            ),
+            label("SA:", label_width),
             Span::raw(format!("{:<col_width$}", format!("0x{:02X}", sa))),
-            Span::styled(
-                format!("{:<label_width$}", "DA:"),
-                Style::default().fg(Color::Yellow),
-            ),
+            label("DA:", label_width),
             Span::raw(format!("0x{:02X}", da)),
         ]),
         Line::from(vec![
-            Span::styled(
-                format!("{:<label_width$}", "DLC:"),
-                Style::default().fg(Color::Yellow),
-            ),
+            label("DLC:", label_width),
             Span::raw(format!("{}", msg.dlc())),
         ]),
     ];
@@ -112,11 +89,73 @@ fn render_signal_list(frame: &mut Frame, area: Rect, msg: &dbc_rs::Message) {
 fn render_signal_detail(
     frame: &mut Frame,
     area: Rect,
-    _message: &dbc_rs::Message,
-    _sig: &dbc_rs::Signal,
+    msg: &dbc_rs::Message,
+    sig: &dbc_rs::Signal,
 ) {
-    frame.render_widget(
+    /*(frame.render_widget(
         Paragraph::new("a").block(Block::default().borders(Borders::ALL).title("Signals")),
         area,
+    );*/
+    render_signal_header(frame, area, msg, sig);
+}
+
+fn render_signal_header(
+    frame: &mut Frame,
+    area: Rect,
+    _msg: &dbc_rs::Message,
+    sig: &dbc_rs::Signal,
+) {
+    let byte_order = match sig.byte_order() {
+        ByteOrder::LittleEndian => "Little Endian (Intel format)",
+        ByteOrder::BigEndian => "Big Endian (Motorola format)",
+    };
+
+    let label_width = 16;
+    let col_width = 20;
+
+    let lines = vec![
+        Line::from(vec![label("Name:", label_width), Span::raw(sig.name())]),
+        Line::from(vec![
+            label("Signed:", label_width),
+            Span::raw(format!("{}", !sig.is_unsigned())),
+        ]),
+        Line::from(vec![
+            label("Byte Order:", label_width),
+            Span::raw(byte_order),
+        ]),
+        Line::from(vec![
+            label("Length:", label_width),
+            Span::raw(format!("{:<col_width$}", sig.length())),
+            label("Units:", label_width),
+            Span::raw(format!("{}", sig.unit().unwrap_or("-"))),
+        ]),
+        Line::from(vec![
+            label("Factor:", label_width),
+            Span::raw(format!("{:<col_width$}", sig.factor())),
+            label("Offset:", label_width),
+            Span::raw(format!("{}", sig.offset())),
+        ]),
+        Line::from(vec![
+            label("Min:", label_width),
+            Span::raw(format!("{:<col_width$}", sig.min())),
+            label("Max:", label_width),
+            Span::raw(format!("{}", sig.max())),
+        ]),
+        Line::from(vec![
+            label("Comment:", label_width),
+            Span::raw(sig.comment().unwrap_or("-")),
+        ]),
+    ];
+
+    frame.render_widget(
+        Paragraph::new(lines).block(Block::default().borders(Borders::ALL).title("Signal")),
+        area,
     );
+}
+
+fn label(text: &str, width: usize) -> Span<'static> {
+    Span::styled(
+        format!("{:<width$}", text),
+        Style::default().fg(Color::Yellow),
+    )
 }
