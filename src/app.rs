@@ -10,6 +10,7 @@ pub struct App {
     pub dbc: dbc_rs::Dbc,
     pub tree_state: TreeState<String>,
     pub running_state: RunningState,
+    pub focus_state: Focus,
 }
 
 #[derive(Default, PartialEq, Eq)]
@@ -19,12 +20,23 @@ pub enum RunningState {
     Done,
 }
 
+#[derive(Default, PartialEq, Eq)]
+pub enum Focus {
+    #[default]
+    Tree,
+    Detail,
+}
+
 pub enum Msg {
-    MoveDown,
-    MoveUp,
-    MoveLeft,
-    MoveRight,
-    ToggleSelected,
+    TreeMoveDown,
+    TreeMoveUp,
+    TreeMoveLeft,
+    TreeMoveRight,
+    TreeToggleSelected,
+    DetailScrollDown,
+    DetailScrollUp,
+    FocusTree,
+    FocusDetail,
     Quit,
 }
 
@@ -34,6 +46,7 @@ impl App {
             dbc,
             tree_state: TreeState::default(),
             running_state: RunningState::default(),
+            focus_state: Focus::default(),
         }
     }
 
@@ -54,44 +67,64 @@ impl App {
     }
 }
 
-fn handle_event(_: &App) -> color_eyre::Result<Option<Msg>> {
+fn handle_event(app: &App) -> color_eyre::Result<Option<Msg>> {
     if event::poll(Duration::from_millis(250))?
         && let Event::Key(key) = event::read()?
         && key.kind == event::KeyEventKind::Press
     {
-        return Ok(handle_key(key.code));
+        return Ok(handle_key(key.code, &app.focus_state));
     }
     Ok(None)
 }
 
-fn handle_key(key: KeyCode) -> Option<Msg> {
-    match key {
-        KeyCode::Char('j') | KeyCode::Down => Some(Msg::MoveDown),
-        KeyCode::Char('k') | KeyCode::Up => Some(Msg::MoveUp),
-        KeyCode::Char('h') | KeyCode::Left => Some(Msg::MoveLeft),
-        KeyCode::Char('l') | KeyCode::Right => Some(Msg::MoveRight),
-        KeyCode::Enter | KeyCode::Char(' ') => Some(Msg::ToggleSelected),
-        KeyCode::Char('q') | KeyCode::Esc => Some(Msg::Quit),
-        _ => None,
+fn handle_key(key: KeyCode, focus_state: &Focus) -> Option<Msg> {
+    match focus_state {
+        Focus::Tree => match key {
+            KeyCode::Char('j') | KeyCode::Down => Some(Msg::TreeMoveDown),
+            KeyCode::Char('k') | KeyCode::Up => Some(Msg::TreeMoveUp),
+            KeyCode::Char('h') | KeyCode::Left => Some(Msg::TreeMoveLeft),
+            KeyCode::Char('l') | KeyCode::Right => Some(Msg::TreeMoveRight),
+            KeyCode::Enter | KeyCode::Char(' ') => Some(Msg::TreeToggleSelected),
+            KeyCode::Char('1') => Some(Msg::FocusTree),
+            KeyCode::Char('2') => Some(Msg::FocusDetail),
+            KeyCode::Char('q') | KeyCode::Esc => Some(Msg::Quit),
+            _ => None,
+        },
+        Focus::Detail => match key {
+            KeyCode::Char('j') | KeyCode::Down => Some(Msg::DetailScrollDown),
+            KeyCode::Char('k') | KeyCode::Up => Some(Msg::DetailScrollUp),
+            KeyCode::Char('1') => Some(Msg::FocusTree),
+            KeyCode::Char('2') => Some(Msg::FocusDetail),
+            KeyCode::Char('q') | KeyCode::Esc => Some(Msg::Quit),
+            _ => None,
+        },
     }
 }
 
 pub fn update(app: &mut App, msg: Msg) -> Option<Msg> {
     match msg {
-        Msg::MoveDown => {
+        Msg::TreeMoveDown => {
             app.tree_state.key_down();
         }
-        Msg::MoveUp => {
+        Msg::TreeMoveUp => {
             app.tree_state.key_up();
         }
-        Msg::MoveLeft => {
+        Msg::TreeMoveLeft => {
             app.tree_state.key_left();
         }
-        Msg::MoveRight => {
+        Msg::TreeMoveRight => {
             app.tree_state.key_right();
         }
-        Msg::ToggleSelected => {
+        Msg::TreeToggleSelected => {
             app.tree_state.toggle_selected();
+        }
+        Msg::DetailScrollDown => {}
+        Msg::DetailScrollUp => {}
+        Msg::FocusTree => {
+            app.focus_state = Focus::Tree;
+        }
+        Msg::FocusDetail => {
+            app.focus_state = Focus::Detail;
         }
         Msg::Quit => {
             app.running_state = RunningState::Done;

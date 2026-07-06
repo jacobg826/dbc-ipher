@@ -6,22 +6,22 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 
 use crate::Selection;
+use crate::app::Focus;
+use crate::ui::panel_block;
 
-pub fn render_detail(frame: &mut Frame, area: Rect, selection: Selection) {
+pub fn render_detail(frame: &mut Frame, area: Rect, selection: Selection, focus_state: &Focus) {
+    let outer_block = panel_block("Detail", '2', *focus_state == Focus::Detail);
+    let inner_area = outer_block.inner(area);
+    frame.render_widget(outer_block, area);
     match selection {
         Selection::Message(msg) => {
-            let outer_block = Block::default().borders(Borders::ALL);
-            let inner_area = outer_block.inner(area);
-            frame.render_widget(outer_block, area);
-
             let [msg_area, sig_area] =
                 Layout::vertical([Constraint::Length(8), Constraint::Fill(1)]).areas(inner_area);
-
             render_message_header(frame, msg_area, msg);
             render_signal_list(frame, sig_area, msg);
         }
         Selection::Signal(msg, sig) => {
-            render_signal_detail(frame, area, msg, sig);
+            render_signal_detail(frame, inner_area, msg, sig);
         }
         Selection::None => {
             frame.render_widget(

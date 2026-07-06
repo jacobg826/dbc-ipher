@@ -3,6 +3,7 @@ mod tree;
 
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout};
+use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, Borders, Paragraph};
 
 use crate::app::App;
@@ -30,8 +31,28 @@ pub fn render(app: &mut App, frame: &mut Frame) {
     );
 
     let messages: Vec<_> = app.dbc.messages().iter().collect();
-    render_tree(frame, inner_layout[0], &messages, &mut app.tree_state);
+    render_tree(
+        frame,
+        inner_layout[0],
+        &messages,
+        &mut app.tree_state,
+        &app.focus_state,
+    );
 
     let selected = resolve_selection(&app.tree_state, &messages);
-    render_detail(frame, inner_layout[1], selected);
+    render_detail(frame, inner_layout[1], selected, &app.focus_state);
+}
+
+pub fn panel_block(title: &str, keybinding: char, is_focused: bool) -> Block<'_> {
+    let mut block = Block::default()
+        .borders(Borders::ALL)
+        .title(block_title(title, keybinding));
+    if is_focused {
+        block = block.border_style(Style::default().fg(Color::Yellow));
+    }
+    block
+}
+
+fn block_title(text: &str, keybinding: char) -> String {
+    format!(" [{}] {} ", keybinding, text)
 }

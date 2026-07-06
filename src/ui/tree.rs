@@ -2,16 +2,19 @@ use dbc_rs::Message;
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
-use ratatui::widgets::{Block, Borders};
 use tui_tree_widget::{Tree, TreeItem, TreeState};
+
+use crate::app::Focus;
+use crate::ui::panel_block;
 
 pub fn render_tree(
     frame: &mut Frame,
     area: Rect,
     items: &Vec<&Message>,
     tree_state: &mut TreeState<String>,
+    focus_state: &Focus,
 ) {
-    let outer_block = Block::default().borders(Borders::ALL);
+    let outer_block = panel_block("Tree", '1', *focus_state == Focus::Tree);
     let inner_area = outer_block.inner(area);
 
     frame.render_widget(outer_block, area);
