@@ -2,11 +2,13 @@ mod detail;
 mod tree;
 
 use ratatui::Frame;
+use ratatui::layout::Rect;
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Color, Style};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 
-use crate::app::App;
+use crate::app::{App, Focus};
 use crate::selection::resolve_selection;
 use crate::ui::detail::render_detail;
 use crate::ui::tree::render_tree;
@@ -17,7 +19,7 @@ use crate::ui::tree::render_tree;
 pub fn render(app: &mut App, frame: &mut Frame) {
     let outer_layout = Layout::default()
         .direction(Direction::Vertical)
-        .constraints(vec![Constraint::Percentage(60), Constraint::Percentage(40)])
+        .constraints(vec![Constraint::Fill(1), Constraint::Length(1)])
         .split(frame.area());
 
     let inner_layout = Layout::default()
@@ -25,22 +27,30 @@ pub fn render(app: &mut App, frame: &mut Frame) {
         .constraints(vec![Constraint::Percentage(25), Constraint::Percentage(75)])
         .split(outer_layout[0]);
 
-    frame.render_widget(
-        Paragraph::new("Bottom").block(Block::new().title(" [2] Console ").borders(Borders::ALL)),
-        outer_layout[1],
-    );
-
     let messages: Vec<_> = app.dbc.messages().iter().collect();
+
+    let curr_focus = if app.show_keybind_popup {
+        &Focus::None
+    } else {
+        &app.focus_state
+    };
+
     render_tree(
         frame,
         inner_layout[0],
         &messages,
         &mut app.tree_state,
-        &app.focus_state,
+        curr_focus,
     );
 
     let selected = resolve_selection(&app.tree_state, &messages);
-    render_detail(frame, inner_layout[1], selected, &app.focus_state);
+    render_detail(frame, inner_layout[1], selected, curr_focus);
+
+    render_footer(frame, outer_layout[1]);
+
+    if app.show_keybind_popup {
+        render_keybinding_popup(frame);
+    }
 }
 
 pub fn panel_block(title: &str, keybinding: char, is_focused: bool) -> Block<'_> {
@@ -55,4 +65,31 @@ pub fn panel_block(title: &str, keybinding: char, is_focused: bool) -> Block<'_>
 
 fn block_title(text: &str, keybinding: char) -> String {
     format!(" [{}] {} ", keybinding, text)
+}
+
+// TODO: make footer dynamic based off current focus
+fn render_footer(frame: &mut Frame, area: Rect) {
+    let hints = [("q", "quit"), ("<esc>", "cancel"), ("?", "help")];
+
+    let spans: Vec<Span> = hints
+        .iter()
+        .flat_map(|(key, label)| {
+            vec![
+                Span::styled(*key, Style::default().fg(Color::Yellow)),
+                Span::raw(format!(":{label}  ")),
+            ]
+        })
+        .collect();
+
+    frame.render_widget(Paragraph::new(Line::from(spans)), area);
+}
+
+fn render_keybinding_popup(frame: &mut Frame) {
+    let popup_block = Block::bordered().title("Keybindings");
+    let centered_area = frame
+        .area()
+        .centered(Constraint::Percentage(60), Constraint::Percentage(20));
+    frame.render_widget(Clear, centered_area);
+    let paragraph = Paragraph::new("Lorem ipsum").block(popup_block);
+    frame.render_widget(paragraph, centered_area);
 }

@@ -11,6 +11,7 @@ pub struct App {
     pub tree_state: TreeState<String>,
     pub running_state: RunningState,
     pub focus_state: Focus,
+    pub show_keybind_popup: bool,
 }
 
 #[derive(Default, PartialEq, Eq)]
@@ -25,6 +26,7 @@ pub enum Focus {
     #[default]
     Tree,
     Detail,
+    None,
 }
 
 pub enum Msg {
@@ -37,6 +39,7 @@ pub enum Msg {
     DetailScrollUp,
     FocusTree,
     FocusDetail,
+    ToggleKeybindPopup,
     Quit,
 }
 
@@ -47,6 +50,7 @@ impl App {
             tree_state: TreeState::default(),
             running_state: RunningState::default(),
             focus_state: Focus::default(),
+            show_keybind_popup: false,
         }
     }
 
@@ -72,30 +76,45 @@ fn handle_event(app: &App) -> color_eyre::Result<Option<Msg>> {
         && let Event::Key(key) = event::read()?
         && key.kind == event::KeyEventKind::Press
     {
-        return Ok(handle_key(key.code, &app.focus_state));
+        return Ok(handle_key(key.code, app));
     }
     Ok(None)
 }
 
-fn handle_key(key: KeyCode, focus_state: &Focus) -> Option<Msg> {
-    match focus_state {
+fn handle_key(key: KeyCode, app: &App) -> Option<Msg> {
+    // Popup swallows nearly all input while open
+
+    if app.show_keybind_popup {
+        return match key {
+            KeyCode::Esc | KeyCode::Char('?') => Some(Msg::ToggleKeybindPopup),
+            _ => None,
+        };
+    };
+
+    // global keys
+    match key {
+        KeyCode::Char('1') => return Some(Msg::FocusTree),
+        KeyCode::Char('2') => return Some(Msg::FocusDetail),
+        KeyCode::Char('q') | KeyCode::Esc => return Some(Msg::Quit),
+        KeyCode::Char('?') => return Some(Msg::ToggleKeybindPopup),
+        _ => {}
+    };
+
+    match app.focus_state {
         Focus::Tree => match key {
             KeyCode::Char('j') | KeyCode::Down => Some(Msg::TreeMoveDown),
             KeyCode::Char('k') | KeyCode::Up => Some(Msg::TreeMoveUp),
             KeyCode::Char('h') | KeyCode::Left => Some(Msg::TreeMoveLeft),
             KeyCode::Char('l') | KeyCode::Right => Some(Msg::TreeMoveRight),
             KeyCode::Enter | KeyCode::Char(' ') => Some(Msg::TreeToggleSelected),
-            KeyCode::Char('1') => Some(Msg::FocusTree),
-            KeyCode::Char('2') => Some(Msg::FocusDetail),
-            KeyCode::Char('q') | KeyCode::Esc => Some(Msg::Quit),
             _ => None,
         },
         Focus::Detail => match key {
             KeyCode::Char('j') | KeyCode::Down => Some(Msg::DetailScrollDown),
             KeyCode::Char('k') | KeyCode::Up => Some(Msg::DetailScrollUp),
-            KeyCode::Char('1') => Some(Msg::FocusTree),
-            KeyCode::Char('2') => Some(Msg::FocusDetail),
-            KeyCode::Char('q') | KeyCode::Esc => Some(Msg::Quit),
+            _ => None,
+        },
+        Focus::None => match key {
             _ => None,
         },
     }
@@ -125,6 +144,9 @@ pub fn update(app: &mut App, msg: Msg) -> Option<Msg> {
         }
         Msg::FocusDetail => {
             app.focus_state = Focus::Detail;
+        }
+        Msg::ToggleKeybindPopup => {
+            app.show_keybind_popup = !app.show_keybind_popup;
         }
         Msg::Quit => {
             app.running_state = RunningState::Done;
