@@ -4,7 +4,7 @@ use ratatui::DefaultTerminal;
 use std::time::Duration;
 use tui_tree_widget::TreeState;
 
-use crate::ui::render;
+use crate::{keybinding::Context, keybinding::Keymap, ui::render};
 
 pub struct App {
     pub dbc: dbc_rs::Dbc,
@@ -12,6 +12,7 @@ pub struct App {
     pub running_state: RunningState,
     pub focus_state: Focus,
     pub show_keybind_popup: bool,
+    pub keymap: Keymap,
 }
 
 #[derive(Default, PartialEq, Eq)]
@@ -51,6 +52,7 @@ impl App {
             running_state: RunningState::default(),
             focus_state: Focus::default(),
             show_keybind_popup: false,
+            keymap: Keymap::default(),
         }
     }
 
@@ -76,47 +78,20 @@ fn handle_event(app: &App) -> color_eyre::Result<Option<Msg>> {
         && let Event::Key(key) = event::read()?
         && key.kind == event::KeyEventKind::Press
     {
-        return Ok(handle_key(key.code, app));
+        let ctx = current_context(app);
+        return Ok(app.keymap.lookup(ctx, key.code).map(|a| a.to_msg()));
     }
     Ok(None)
 }
 
-fn handle_key(key: KeyCode, app: &App) -> Option<Msg> {
-    // Popup swallows nearly all input while open
-
+fn current_context(app: &App) -> Context {
     if app.show_keybind_popup {
-        return match key {
-            KeyCode::Esc | KeyCode::Char('?') => Some(Msg::ToggleKeybindPopup),
-            _ => None,
-        };
-    };
-
-    // global keys
-    match key {
-        KeyCode::Char('1') => return Some(Msg::FocusTree),
-        KeyCode::Char('2') => return Some(Msg::FocusDetail),
-        KeyCode::Char('q') | KeyCode::Esc => return Some(Msg::Quit),
-        KeyCode::Char('?') => return Some(Msg::ToggleKeybindPopup),
-        _ => {}
-    };
-
+        return Context::Popup;
+    }
     match app.focus_state {
-        Focus::Tree => match key {
-            KeyCode::Char('j') | KeyCode::Down => Some(Msg::TreeMoveDown),
-            KeyCode::Char('k') | KeyCode::Up => Some(Msg::TreeMoveUp),
-            KeyCode::Char('h') | KeyCode::Left => Some(Msg::TreeMoveLeft),
-            KeyCode::Char('l') | KeyCode::Right => Some(Msg::TreeMoveRight),
-            KeyCode::Enter | KeyCode::Char(' ') => Some(Msg::TreeToggleSelected),
-            _ => None,
-        },
-        Focus::Detail => match key {
-            KeyCode::Char('j') | KeyCode::Down => Some(Msg::DetailScrollDown),
-            KeyCode::Char('k') | KeyCode::Up => Some(Msg::DetailScrollUp),
-            _ => None,
-        },
-        Focus::None => match key {
-            _ => None,
-        },
+        Focus::Tree => Context::Tree,
+        Focus::Detail => Context::Detail,
+        Focus::None => Context::Global,
     }
 }
 

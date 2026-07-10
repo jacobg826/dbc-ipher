@@ -1,4 +1,5 @@
 mod app;
+mod keybinding;
 mod selection;
 mod ui;
 
