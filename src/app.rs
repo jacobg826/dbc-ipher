@@ -84,7 +84,7 @@ fn handle_event(app: &App) -> color_eyre::Result<Option<Msg>> {
     Ok(None)
 }
 
-fn current_context(app: &App) -> Context {
+pub fn current_context(app: &App) -> Context {
     if app.show_keybind_popup {
         return Context::Popup;
     }
