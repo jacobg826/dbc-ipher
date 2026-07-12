@@ -4,6 +4,7 @@ use crossterm::event::KeyCode;
 use std::collections::HashMap;
 
 use crate::keybinding::action::Action;
+pub use crate::keybinding::action::footer_actions;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Context {
@@ -104,5 +105,14 @@ impl Keymap {
                 })
             })
             .collect()
+    }
+
+    pub fn primary_key_for(&self, ctx: Context, action: Action) -> Option<KeyCode> {
+        self.bindings
+            .iter()
+            .map(|(&(c, k), &a)| (c, k, a)) // copy out, now working with plain values
+            .filter(|&(c, _, a)| (c == ctx || c == Context::Global) && a == action)
+            .map(|(_, k, _)| k)
+            .min_by_key(|&k| Keymap::key_sort_rank(&k))
     }
 }

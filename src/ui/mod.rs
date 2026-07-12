@@ -2,6 +2,7 @@ mod detail;
 mod popup;
 mod tree;
 
+use crossterm::event::KeyCode;
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::layout::{Constraint, Direction, Layout};
@@ -10,6 +11,8 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 
 use crate::app::{App, Focus};
+use crate::keybinding::footer_actions;
+use crate::keybinding::{Context, Keymap};
 use crate::selection::resolve_selection;
 use crate::ui::detail::render_detail;
 use crate::ui::popup::render_keybinding_popup;
@@ -48,7 +51,7 @@ pub fn render(app: &mut App, frame: &mut Frame) {
     let selected = resolve_selection(&app.tree_state, &messages);
     render_detail(frame, inner_layout[1], selected, curr_focus);
 
-    render_footer(frame, outer_layout[1]);
+    render_footer(frame, outer_layout[1], &app.keymap, app.current_context());
 
     if app.show_keybind_popup {
         render_keybinding_popup(frame, &app.keymap, app.current_context(), curr_focus);
@@ -69,15 +72,21 @@ fn block_title(text: &str, keybinding: char) -> String {
     format!(" [{}] {} ", keybinding, text)
 }
 
-// TODO: make footer dynamic based off current focus
-fn render_footer(frame: &mut Frame, area: Rect) {
-    let hints = [("q", "quit"), ("<esc>", "cancel"), ("?", "help")];
+fn render_footer(frame: &mut Frame, area: Rect, keymap: &Keymap, ctx: Context) {
+    let hints: Vec<(KeyCode, &str)> = footer_actions(ctx)
+        .iter()
+        .filter_map(|action| {
+            keymap
+                .primary_key_for(ctx, *action)
+                .map(|key| (key, action.description()))
+        })
+        .collect();
 
     let spans: Vec<Span> = hints
         .iter()
         .flat_map(|(key, label)| {
             vec![
-                Span::styled(*key, Style::default().fg(Color::Yellow)),
+                Span::styled(key.to_string(), Style::default().fg(Color::Yellow)),
                 Span::raw(format!(":{label}  ")),
             ]
         })

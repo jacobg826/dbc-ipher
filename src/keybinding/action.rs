@@ -1,4 +1,5 @@
 use crate::app::Msg;
+use crate::keybinding::Context;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Action {
@@ -70,6 +71,20 @@ impl Action {
             Action::ClosePopup => Msg::ToggleKeybindPopup,
             Action::Quit => Msg::Quit,
         }
+    }
+}
+
+pub fn footer_actions(ctx: Context) -> &'static [Action] {
+    match ctx {
+        Context::Tree => &[
+            Action::TreeMoveDown,
+            Action::TreeMoveUp,
+            Action::ToggleKeybindPopup,
+            Action::Quit,
+        ],
+        Context::Detail => &[Action::ToggleKeybindPopup, Action::Quit],
+        Context::Popup => &[Action::ClosePopup],
+        Context::Global => &[Action::ToggleKeybindPopup, Action::Quit],
     }
 }
 
