@@ -151,7 +151,7 @@ fn render_signal_header(
     );
 }
 
-fn label(text: &str, width: usize) -> Span<'static> {
+pub fn label(text: &str, width: usize) -> Span<'static> {
     Span::styled(
         format!("{:<width$}", text),
         Style::default().fg(Color::Yellow),

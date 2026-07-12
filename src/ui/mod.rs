@@ -1,14 +1,21 @@
 mod detail;
+mod popup;
 mod tree;
 
+use crossterm::event::KeyCode;
 use ratatui::Frame;
+use ratatui::layout::Rect;
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Color, Style};
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 
-use crate::app::App;
+use crate::app::{App, Focus};
+use crate::keybinding::footer_actions;
+use crate::keybinding::{Context, Keymap};
 use crate::selection::resolve_selection;
 use crate::ui::detail::render_detail;
+use crate::ui::popup::render_keybinding_popup;
 use crate::ui::tree::render_tree;
 
 // Top-level entry point called once per frame from App::run.
@@ -17,7 +24,7 @@ use crate::ui::tree::render_tree;
 pub fn render(app: &mut App, frame: &mut Frame) {
     let outer_layout = Layout::default()
         .direction(Direction::Vertical)
-        .constraints(vec![Constraint::Percentage(60), Constraint::Percentage(40)])
+        .constraints(vec![Constraint::Fill(1), Constraint::Length(1)])
         .split(frame.area());
 
     let inner_layout = Layout::default()
@@ -25,22 +32,30 @@ pub fn render(app: &mut App, frame: &mut Frame) {
         .constraints(vec![Constraint::Percentage(25), Constraint::Percentage(75)])
         .split(outer_layout[0]);
 
-    frame.render_widget(
-        Paragraph::new("Bottom").block(Block::new().title(" [2] Console ").borders(Borders::ALL)),
-        outer_layout[1],
-    );
-
     let messages: Vec<_> = app.dbc.messages().iter().collect();
+
+    let curr_focus = if app.show_keybind_popup {
+        &Focus::Popup
+    } else {
+        &app.focus_state
+    };
+
     render_tree(
         frame,
         inner_layout[0],
         &messages,
         &mut app.tree_state,
-        &app.focus_state,
+        curr_focus,
     );
 
     let selected = resolve_selection(&app.tree_state, &messages);
-    render_detail(frame, inner_layout[1], selected, &app.focus_state);
+    render_detail(frame, inner_layout[1], selected, curr_focus);
+
+    render_footer(frame, outer_layout[1], &app.keymap, app.current_context());
+
+    if app.show_keybind_popup {
+        render_keybinding_popup(frame, &app.keymap, app.current_context(), curr_focus);
+    }
 }
 
 pub fn panel_block(title: &str, keybinding: char, is_focused: bool) -> Block<'_> {
@@ -55,4 +70,27 @@ pub fn panel_block(title: &str, keybinding: char, is_focused: bool) -> Block<'_>
 
 fn block_title(text: &str, keybinding: char) -> String {
     format!(" [{}] {} ", keybinding, text)
+}
+
+fn render_footer(frame: &mut Frame, area: Rect, keymap: &Keymap, ctx: Context) {
+    let hints: Vec<(KeyCode, &str)> = footer_actions(ctx)
+        .iter()
+        .filter_map(|action| {
+            keymap
+                .primary_key_for(ctx, *action)
+                .map(|key| (key, action.description()))
+        })
+        .collect();
+
+    let spans: Vec<Span> = hints
+        .iter()
+        .flat_map(|(key, label)| {
+            vec![
+                Span::styled(key.to_string(), Style::default().fg(Color::Yellow)),
+                Span::raw(format!(":{label}  ")),
+            ]
+        })
+        .collect();
+
+    frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }
