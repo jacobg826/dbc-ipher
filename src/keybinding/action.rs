@@ -34,6 +34,24 @@ impl Action {
         }
     }
 
+    // Canonical order of actions for keybinding popup
+    pub fn all() -> &'static [Action] {
+        &[
+            Action::FocusTree,
+            Action::FocusDetail,
+            Action::TreeMoveUp,
+            Action::TreeMoveDown,
+            Action::TreeMoveLeft,
+            Action::TreeMoveRight,
+            Action::TreeToggleSelected,
+            Action::DetailScrollUp,
+            Action::DetailScrollDown,
+            Action::ToggleKeybindPopup,
+            Action::ClosePopup,
+            Action::Quit,
+        ]
+    }
+
     /// currently a direct line to the Msg enum. payload free right now,
     /// but this is the place where a future Action::JumpToSignal(String)
     /// can plug in without touching Keymap at all.
@@ -53,4 +71,37 @@ impl Action {
             Action::Quit => Msg::Quit,
         }
     }
+}
+
+#[test]
+fn all_actions_are_listed() {
+    // Exhaustive match forces a compile error the moment a new Action
+    // variant is added and not handled here
+    fn assert_covered(action: Action) {
+        match action {
+            Action::TreeMoveDown
+            | Action::TreeMoveUp
+            | Action::TreeMoveLeft
+            | Action::TreeMoveRight
+            | Action::TreeToggleSelected
+            | Action::DetailScrollDown
+            | Action::DetailScrollUp
+            | Action::FocusTree
+            | Action::FocusDetail
+            | Action::ToggleKeybindPopup
+            | Action::ClosePopup
+            | Action::Quit => {}
+        }
+    }
+
+    for action in Action::all() {
+        assert_covered(*action);
+    }
+
+    // Check all variants exist in all()
+    assert_eq!(
+        Action::all().len(),
+        12,
+        "update this count when adding a new Action variant"
+    );
 }

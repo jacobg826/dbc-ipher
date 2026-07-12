@@ -1,4 +1,5 @@
 mod detail;
+mod popup;
 mod tree;
 
 use ratatui::Frame;
@@ -6,12 +7,12 @@ use ratatui::layout::Rect;
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Clear, Paragraph};
+use ratatui::widgets::{Block, Borders, Paragraph};
 
-use crate::app::{App, Focus, current_context};
-use crate::keybinding::{Context, Keymap};
+use crate::app::{App, Focus};
 use crate::selection::resolve_selection;
-use crate::ui::detail::{label, render_detail};
+use crate::ui::detail::render_detail;
+use crate::ui::popup::render_keybinding_popup;
 use crate::ui::tree::render_tree;
 
 // Top-level entry point called once per frame from App::run.
@@ -31,7 +32,7 @@ pub fn render(app: &mut App, frame: &mut Frame) {
     let messages: Vec<_> = app.dbc.messages().iter().collect();
 
     let curr_focus = if app.show_keybind_popup {
-        &Focus::None
+        &Focus::Popup
     } else {
         &app.focus_state
     };
@@ -50,8 +51,7 @@ pub fn render(app: &mut App, frame: &mut Frame) {
     render_footer(frame, outer_layout[1]);
 
     if app.show_keybind_popup {
-        let ctx = current_context(app);
-        render_keybinding_popup(frame, &app.keymap, ctx);
+        render_keybinding_popup(frame, &app.keymap, app.current_context(), curr_focus);
     }
 }
 
@@ -84,31 +84,4 @@ fn render_footer(frame: &mut Frame, area: Rect) {
         .collect();
 
     frame.render_widget(Paragraph::new(Line::from(spans)), area);
-}
-
-fn render_keybinding_popup(frame: &mut Frame, keymap: &Keymap, ctx: Context) {
-    let popup_block = Block::bordered().title("Keybindings");
-    let centered_area = frame
-        .area()
-        .centered(Constraint::Percentage(60), Constraint::Percentage(20));
-    frame.render_widget(Clear, centered_area);
-
-    let paragraph = Paragraph::new("Lorem ipsum").block(popup_block);
-
-    let label_width = 10;
-    let lines: Vec<Line> = keymap
-        .bindings_for(ctx)
-        .iter()
-        .map(|(key, action)| {
-            Line::from(vec![
-                label(&key.to_string(), label_width),
-                Span::raw(action.description()),
-            ])
-        })
-        .collect();
-
-    frame.render_widget(
-        Paragraph::new(lines).block(Block::default().borders(Borders::ALL).title("thing")),
-        centered_area,
-    );
 }

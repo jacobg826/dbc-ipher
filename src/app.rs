@@ -1,5 +1,5 @@
 use color_eyre::eyre::Ok;
-use crossterm::event::{self, Event, KeyCode};
+use crossterm::event::{self, Event};
 use ratatui::DefaultTerminal;
 use std::time::Duration;
 use tui_tree_widget::TreeState;
@@ -27,7 +27,7 @@ pub enum Focus {
     #[default]
     Tree,
     Detail,
-    None,
+    Popup,
 }
 
 pub enum Msg {
@@ -71,6 +71,14 @@ impl App {
         }
         Ok(())
     }
+
+    pub fn current_context(&self) -> Context {
+        match self.focus_state {
+            Focus::Tree => Context::Tree,
+            Focus::Detail => Context::Detail,
+            Focus::Popup => Context::Popup,
+        }
+    }
 }
 
 fn handle_event(app: &App) -> color_eyre::Result<Option<Msg>> {
@@ -78,21 +86,10 @@ fn handle_event(app: &App) -> color_eyre::Result<Option<Msg>> {
         && let Event::Key(key) = event::read()?
         && key.kind == event::KeyEventKind::Press
     {
-        let ctx = current_context(app);
+        let ctx = app.current_context();
         return Ok(app.keymap.lookup(ctx, key.code).map(|a| a.to_msg()));
     }
     Ok(None)
-}
-
-pub fn current_context(app: &App) -> Context {
-    if app.show_keybind_popup {
-        return Context::Popup;
-    }
-    match app.focus_state {
-        Focus::Tree => Context::Tree,
-        Focus::Detail => Context::Detail,
-        Focus::None => Context::Global,
-    }
 }
 
 pub fn update(app: &mut App, msg: Msg) -> Option<Msg> {

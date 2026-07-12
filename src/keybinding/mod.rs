@@ -65,6 +65,19 @@ impl Keymap {
         Keymap { bindings: b }
     }
 
+    // priorities for how keys should be displayed in the keybinding popup
+    pub fn key_sort_rank(key: &KeyCode) -> (u8, String) {
+        match key {
+            KeyCode::Char(c) => (0, c.to_string()),
+            KeyCode::Up => (1, "1".into()),
+            KeyCode::Down => (1, "2".into()),
+            KeyCode::Left => (1, "3".into()),
+            KeyCode::Right => (1, "4".into()),
+            KeyCode::Enter => (2, "1".into()),
+            KeyCode::Esc => (2, "2".into()),
+            _ => (3, format!("{:?}", key)),
+        }
+    }
     pub fn lookup(&self, ctx: Context, key: KeyCode) -> Option<Action> {
         // Context-specific binding wins; fall back to Global.
         self.bindings
@@ -73,13 +86,23 @@ impl Keymap {
             .copied()
     }
 
-    /// For tool tips: everything active in this context, popup excluded
-    /// unless explicitly asked for.
-    pub fn bindings_for(&self, ctx: Context) -> Vec<(KeyCode, Action)> {
-        self.bindings
+    pub fn grouped_bindings_for(&self, ctx: Context) -> Vec<(Action, Vec<KeyCode>)> {
+        let mut by_action: HashMap<Action, Vec<KeyCode>> = HashMap::new();
+
+        for ((c, key), action) in &self.bindings {
+            if *c == ctx || *c == Context::Global {
+                by_action.entry(*action).or_default().push(*key);
+            }
+        }
+
+        Action::all()
             .iter()
-            .filter(|((c, _), _)| *c == ctx || *c == Context::Global)
-            .map(|((_, k), a)| (*k, *a))
+            .filter_map(|a| {
+                by_action.remove(a).map(|mut keys| {
+                    keys.sort_by_key(Keymap::key_sort_rank);
+                    (*a, keys)
+                })
+            })
             .collect()
     }
 }
